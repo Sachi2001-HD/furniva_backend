@@ -101,14 +101,13 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-productSchema.pre("validate", function (next) {
+productSchema.pre("validate", function () {
   if (this.offerPrice != null && this.offerPrice >= this.price) {
     this.invalidate(
       "offerPrice",
       "Offer price must be lower than the regular price"
     );
   }
-  next();
 });
 
 productSchema.virtual("inStock").get(function () {
