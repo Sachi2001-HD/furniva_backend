@@ -41,12 +41,6 @@ const productSchema = new mongoose.Schema(
       type: Number,
       min: 0,
       default: null,
-      validate: {
-        validator: function (value) {
-          return value == null || value < this.price;
-        },
-        message: "Offer price must be lower than the regular price",
-      },
     },
 
     // All dimensions in cm
@@ -58,7 +52,10 @@ const productSchema = new mongoose.Schema(
 
     images: {
       type: [String],
-      default: [],
+      validate: {
+        validator: (value) => value.length > 0,
+        message: "Add at least one product image",
+      },
     },
 
     stock: {
@@ -72,6 +69,11 @@ const productSchema = new mongoose.Schema(
       type: String,
       enum: ["Bestseller", "New", null],
       default: null,
+    },
+
+    isFeatured: {
+      type: Boolean,
+      default: false,
     },
 
     rating: {
@@ -98,6 +100,16 @@ const productSchema = new mongoose.Schema(
     toObject: { virtuals: true },
   }
 );
+
+productSchema.pre("validate", function (next) {
+  if (this.offerPrice != null && this.offerPrice >= this.price) {
+    this.invalidate(
+      "offerPrice",
+      "Offer price must be lower than the regular price"
+    );
+  }
+  next();
+});
 
 productSchema.virtual("inStock").get(function () {
   return this.stock > 0;

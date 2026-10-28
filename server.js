@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import dns from "node:dns";
 import userRouter from "./routers/userRouter.js";
+import productRouter from "./routers/productRouter.js";
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/users", userRouter);
+app.use("/products", productRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Furniva API!");
