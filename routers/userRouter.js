@@ -2,6 +2,7 @@ import express from "express";
 import {
   registerUser,
   loginUser,
+  googleLogin,
   getMyProfile,
   updateMyProfile,
   changePassword,
@@ -12,6 +13,7 @@ const userRouter = express.Router();
 
 userRouter.post("/signup", registerUser);
 userRouter.post("/login", loginUser);
+userRouter.post("/google", googleLogin);
 
 // Protected
 userRouter.get("/me", authenticate, getMyProfile);
