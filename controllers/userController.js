@@ -2,6 +2,8 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import User from "../models/user.js";
 import { OAuth2Client } from "google-auth-library";
+import { sendEmail } from "../utils/sendEmail.js";
+import { welcomeEmail } from "../utils/emailTemplates.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -14,6 +16,14 @@ const sanitizeUser = (user) => {
   const obj = user.toObject();
   delete obj.password;
   return obj;
+};
+
+const sendWelcomeEmail = (user) => {
+  sendEmail({
+    to: user.email,
+    subject: "Welcome to Furniva!",
+    html: welcomeEmail(user.firstName),
+  }).catch((err) => console.error("Welcome email failed:", err.message));
 };
 
 // User registration
@@ -39,6 +49,8 @@ export const registerUser = async (req, res) => {
       email,
       password,
     });
+
+    sendWelcomeEmail(user);
 
     res.status(201).json({
       message: "Registration successful",
@@ -111,6 +123,7 @@ export const googleLogin = async (req, res) => {
     }
 
     let user = await User.findOne({ email: profile.email.toLowerCase() });
+    let isNewUser = false;
 
     if (!user) {
       user = await User.create({
@@ -121,8 +134,9 @@ export const googleLogin = async (req, res) => {
         image: profile.picture || null,
         isEmailVerified: true,
       });
+      isNewUser = true;
     } else if (!user.googleId) {
-      //Link the Google account to an existing user
+      // Link the Google account to an existing user
       user.googleId = profile.sub;
       user.isEmailVerified = true;
       if (!user.image && profile.picture) user.image = profile.picture;
@@ -136,6 +150,8 @@ export const googleLogin = async (req, res) => {
     if (user.isBlocked) {
       return res.status(403).json({ message: "Your account has been blocked" });
     }
+
+    if (isNewUser) sendWelcomeEmail(user);
 
     res.json({
       message: "Login successful",
