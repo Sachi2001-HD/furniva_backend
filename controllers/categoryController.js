@@ -29,7 +29,7 @@ const handleError = (res, error) => {
 const notFound = (res) =>
   res.status(404).json({ message: "Category not found." });
 
-// GET /api/categories  (public)
+// GET /categories  (public)
 export const getCategories = async (req, res) => {
   try {
     const categories = await Category.find({ isActive: true })
@@ -59,7 +59,7 @@ export const getCategories = async (req, res) => {
   }
 };
 
-// GET /api/categories/admin/all
+// GET /categories/admin/all  (admin)
 export const getAdminCategories = async (req, res) => {
   try {
     const categories = await Category.find().sort({ name: 1 });
@@ -69,7 +69,7 @@ export const getAdminCategories = async (req, res) => {
   }
 };
 
-// GET /api/categories/:id  (public)
+// GET /categories/:id  (public)
 export const getCategoryById = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(res);
@@ -83,7 +83,7 @@ export const getCategoryById = async (req, res) => {
   }
 };
 
-// POST /api/categories  (admin)
+// POST /categories  (admin)
 export const createCategory = async (req, res) => {
   try {
     const category = await Category.create(pick(req.body, EDITABLE));
@@ -93,7 +93,7 @@ export const createCategory = async (req, res) => {
   }
 };
 
-// PUT /api/categories/:id  (admin)
+// PUT /categories/:id  (admin)
 export const updateCategory = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(res);
@@ -102,7 +102,7 @@ export const updateCategory = async (req, res) => {
     if (!category) return notFound(res);
 
     category.set(pick(req.body, EDITABLE));
-    await category.save(); 
+    await category.save();
 
     res.json(category);
   } catch (error) {
@@ -110,7 +110,7 @@ export const updateCategory = async (req, res) => {
   }
 };
 
-// PATCH /api/categories/:id/status  (admin)
+// PATCH /categories/:id/status  (admin)
 export const setCategoryStatus = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(res);
@@ -126,6 +126,31 @@ export const setCategoryStatus = async (req, res) => {
     await category.save();
 
     res.json(category);
+  } catch (error) {
+    handleError(res, error);
+  }
+};
+
+// DELETE /categories/:id  (admin)  
+export const deleteCategory = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return notFound(res);
+
+    const category = await Category.findById(req.params.id);
+    if (!category) return notFound(res);
+
+    // Count ALL products
+    const count = await Product.countDocuments({ category: category._id });
+    if (count > 0) {
+      return res.status(409).json({
+        message: `This category still has ${count} product${
+          count === 1 ? "" : "s"
+        }. Move them to another category first, or hide the category instead.`,
+      });
+    }
+
+    await category.deleteOne();
+    res.json({ message: "Category deleted.", _id: category._id });
   } catch (error) {
     handleError(res, error);
   }
