@@ -4,7 +4,7 @@ import Category from "../models/category.js";
 
 const EDITABLE = [
   "name", "description", "category", "material", "colour",
-  "price", "offerPrice", "dimensions", "images", "stock",
+  "price", "offerPrice", "dimensions", "images", "model3d", "stock",
   "badge", "isFeatured",
 ];
 
@@ -36,9 +36,10 @@ const notFound = (res) =>
   res.status(404).json({ message: "Product not found." });
 
 const categoryExists = async (id) =>
-  mongoose.isValidObjectId(id) && (await Category.exists({ _id: id }));
+  mongoose.isValidObjectId(id) &&
+  (await Category.exists({ _id: id, isActive: true }));
 
-// GET products
+// GET /products  (public)
 export const getProducts = async (req, res) => {
   try {
     const {
@@ -48,11 +49,15 @@ export const getProducts = async (req, res) => {
 
     const filter = { isActive: true };
 
+    const activeIds = (
+      await Category.find({ isActive: true }).distinct("_id")
+    ).map(String);
+    const ids = category
+      ? category.split(",").filter((id) => activeIds.includes(id))
+      : activeIds;
+    filter.category = { $in: ids };
+
     if (search) filter.$text = { $search: search };
-    if (category) {
-      const ids = category.split(",").filter(mongoose.isValidObjectId);
-      filter.category = { $in: ids };
-    }
     if (material) filter.material = { $in: material.split(",") };
     if (inStock === "true") filter.stock = { $gt: 0 };
     if (featured === "true") filter.isFeatured = true;
@@ -92,7 +97,7 @@ export const getProducts = async (req, res) => {
   }
 };
 
-// GET /api/products/admin/all
+// GET /products/admin/all  (admin)
 export const getAdminProducts = async (req, res) => {
   try {
     const products = await Product.find()
@@ -104,16 +109,18 @@ export const getAdminProducts = async (req, res) => {
   }
 };
 
-// GET /api/products/:id  (public)
+// GET /products/:id  (public)
 export const getProductById = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(res);
 
     const product = await Product.findById(req.params.id).populate(
       "category",
-      "name"
+      "name isActive"
     );
-    if (!product || !product.isActive) return notFound(res);
+    if (!product || !product.isActive || !product.category?.isActive) {
+      return notFound(res);
+    }
 
     res.json(product);
   } catch (error) {
@@ -121,7 +128,7 @@ export const getProductById = async (req, res) => {
   }
 };
 
-// POST /api/products  (admin)
+// POST /products  (admin)
 export const createProduct = async (req, res) => {
   try {
     const data = pick(req.body, EDITABLE);
@@ -137,7 +144,7 @@ export const createProduct = async (req, res) => {
   }
 };
 
-// PUT /api/products/:id  (admin)
+// PUT /products/:id  (admin)
 export const updateProduct = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(res);
@@ -147,12 +154,17 @@ export const updateProduct = async (req, res) => {
 
     const data = pick(req.body, EDITABLE);
 
-    if (data.category && !(await categoryExists(data.category))) {
+    // Only validate the category when it is being changed
+    if (
+      data.category &&
+      String(data.category) !== String(product.category) &&
+      !(await categoryExists(data.category))
+    ) {
       return res.status(400).json({ message: "Choose a valid category." });
     }
 
     product.set(data);
-    await product.save(); 
+    await product.save();
 
     res.json(product);
   } catch (error) {
@@ -160,7 +172,7 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// PATCH /api/products/:id/status  (admin) 
+// PATCH /products/:id/status  (admin)
 export const setProductStatus = async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(res);

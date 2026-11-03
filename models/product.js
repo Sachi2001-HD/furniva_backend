@@ -58,6 +58,16 @@ const productSchema = new mongoose.Schema(
       },
     },
 
+    model3d: {
+      type: String,
+      trim: true,
+      default: null,
+      validate: {
+        validator: (v) => !v || /^https?:\/\//i.test(v),
+        message: "3D model must be a valid link",
+      },
+    },
+
     stock: {
       type: Number,
       required: true,
@@ -98,7 +108,7 @@ const productSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
-  }
+  },
 );
 
 productSchema.pre("validate", function () {
