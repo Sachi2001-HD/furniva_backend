@@ -9,6 +9,8 @@ import categoryRouter from "./routers/categoryRouter.js";
 import orderRouter from "./routers/orderRouter.js";
 import cartRouter from "./routers/cartRouter.js";
 import uploadRouter from "./routers/uploadRouter.js";
+import reviewRouter from "./routers/reviewRouter.js";
+import addressRouter from "./routers/addressRouter.js";
 
 dotenv.config();
 
@@ -26,6 +28,8 @@ app.use("/cart", cartRouter);
 app.use("/categories", categoryRouter);
 app.use("/orders", orderRouter);
 app.use("/upload", uploadRouter);
+app.use("/reviews", reviewRouter);
+app.use("/addresses", addressRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Furniva API!");
