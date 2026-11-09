@@ -8,6 +8,8 @@ export const ORDER_STATUSES = [
   "Cancelled",
 ];
 
+export const ORDER_PAYMENT_METHODS = ["cod", "bank_transfer"];
+
 const generateOrderNumber = () =>
   "ORD" +
   Date.now().toString().slice(-7) +
@@ -67,13 +69,13 @@ const orderSchema = new mongoose.Schema(
 
     paymentMethod: {
       type: String,
-      enum: ["cod"],
+      enum: ORDER_PAYMENT_METHODS,
       default: "cod",
     },
 
     paymentStatus: {
       type: String,
-      enum: ["pending", "paid"],
+      enum: ["pending", "paid", "refunded"],
       default: "pending",
     },
 
