@@ -65,4 +65,32 @@ uploadRouter.post(
   }
 );
 
+// Customer profile image upload
+uploadRouter.post(
+  "/profile-image",
+  authenticate,
+  handleUpload(upload.single("image"), 5),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Please select an image." });
+      }
+
+      const result = await uploadToCloudinary(
+        req.file.buffer,
+        "furniva/profiles"
+      );
+
+      return res.status(200).json({
+        message: "Profile image uploaded successfully.",
+        url: result.secure_url,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: error.message || "Profile image upload failed.",
+      });
+    }
+  }
+);
+
 export default uploadRouter;
