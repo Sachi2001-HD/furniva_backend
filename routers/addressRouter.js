@@ -1,33 +1,21 @@
 import express from "express";
-
 import {
   getAddresses,
-  addAddress,
+  createAddress,
   updateAddress,
-  deleteAddress,
   setDefaultAddress,
+  deleteAddress,
 } from "../controllers/addressController.js";
-
 import { authenticate } from "../middlewares/authenticate.js";
 
-const addressRouter = express.Router();
+const router = express.Router();
 
-// All address routes require authentication
-addressRouter.use(authenticate);
+router.use(authenticate);
 
-// Get all saved addresses
-addressRouter.get("/", getAddresses);
+router.get("/", getAddresses);
+router.post("/", createAddress);
+router.put("/:id", updateAddress);
+router.patch("/:id/default", setDefaultAddress);
+router.delete("/:id", deleteAddress);
 
-// Add a new address
-addressRouter.post("/", addAddress);
-
-// Update an address
-addressRouter.put("/:addressId", updateAddress);
-
-// Set an address as default
-addressRouter.patch("/:addressId/default", setDefaultAddress);
-
-// Delete an address
-addressRouter.delete("/:addressId", deleteAddress);
-
-export default addressRouter;
+export default router;

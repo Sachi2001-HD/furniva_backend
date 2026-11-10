@@ -1,271 +1,142 @@
 import mongoose from "mongoose";
 import Address from "../models/address.js";
 
-// Get logged-in user's ID
-const getUserId = (req) => req.user.id || req.user._id;
+const MAX_ADDRESSES = 10;
+const EDITABLE = ["label", "fullName", "phone", "address", "city", "postalCode"];
 
-// Get all addresses belonging to the logged-in user
+const pick = (obj, keys) => {
+  const source = obj ?? {};
+  return Object.fromEntries(
+    keys.filter((k) => source[k] !== undefined).map((k) => [k, source[k]])
+  );
+};
+
+const handleError = (res, error) => {
+  if (error.name === "ValidationError") {
+    const message = Object.values(error.errors).map((e) => e.message).join(" ");
+    return res.status(400).json({ message });
+  }
+  if (error.name === "CastError") {
+    return res.status(400).json({ message: `Invalid value for ${error.path}.` });
+  }
+  console.error(error);
+  res.status(500).json({ message: "Something went wrong. Please try again." });
+};
+
+const notFound = (res) =>
+  res.status(404).json({ message: "Address not found." });
+
+const findOwn = (req) =>
+  mongoose.isValidObjectId(req.params.id)
+    ? Address.findOne({ _id: req.params.id, user: req.user._id })
+    : null;
+
+const clearDefault = (userId) =>
+  Address.updateMany({ user: userId, isDefault: true }, { isDefault: false });
+
+// GET /addresses
 export const getAddresses = async (req, res) => {
   try {
-    const userId = getUserId(req);
-
-    const addresses = await Address.find({ user: userId })
-      .sort({ isDefault: -1, createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      count: addresses.length,
-      addresses,
+    // Default first, then the most recently changed
+    const addresses = await Address.find({ user: req.user._id }).sort({
+      isDefault: -1,
+      updatedAt: -1,
     });
+    res.json({ addresses });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to retrieve addresses",
-      error: error.message,
-    });
+    handleError(res, error);
   }
 };
 
-// Add a new address
-export const addAddress = async (req, res) => {
+// POST /addresses
+export const createAddress = async (req, res) => {
   try {
-    const userId = getUserId(req);
-
-    const {
-      recipientName,
-      contactNumber,
-      label,
-      addressLine1,
-      addressLine2,
-      city,
-      district,
-      province,
-      postalCode,
-      country,
-      isDefault,
-    } = req.body;
-
-    // Validate required fields
-    if (
-      !recipientName ||
-      !contactNumber ||
-      !addressLine1 ||
-      !city ||
-      !district ||
-      !province
-    ) {
+    const count = await Address.countDocuments({ user: req.user._id });
+    if (count >= MAX_ADDRESSES) {
       return res.status(400).json({
-        success: false,
-        message: "Please provide all required address fields",
+        message: `You can save up to ${MAX_ADDRESSES} addresses. Delete one to add another.`,
       });
     }
 
-    // Check whether the user already has an address
-    const existingAddress = await Address.findOne({ user: userId });
+    const makeDefault = count === 0 || req.body?.isDefault === true;
 
-    // First address automatically becomes the default
-    const shouldBeDefault = isDefault || !existingAddress;
-
-    // If the new address is default, remove default status from others
-    if (shouldBeDefault) {
-      await Address.updateMany(
-        { user: userId },
-        { $set: { isDefault: false } }
-      );
-    }
-
-    const newAddress = await Address.create({
-      user: userId,
-      recipientName,
-      contactNumber,
-      label,
-      addressLine1,
-      addressLine2,
-      city,
-      district,
-      province,
-      postalCode,
-      country,
-      isDefault: shouldBeDefault,
+    const address = new Address({
+      ...pick(req.body, EDITABLE),
+      user: req.user._id,
+      isDefault: makeDefault,
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Address added successfully",
-      address: newAddress,
-    });
+    await address.validate();
+
+    if (makeDefault) await clearDefault(req.user._id);
+    await address.save();
+
+    res.status(201).json(address);
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to add address",
-      error: error.message,
-    });
+    handleError(res, error);
   }
 };
 
-// Update an existing address
+// PUT /addresses/:id
 export const updateAddress = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    const { addressId } = req.params;
+    const address = await findOwn(req);
+    if (!address) return notFound(res);
 
-    if (!mongoose.Types.ObjectId.isValid(addressId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid address ID",
-      });
-    }
+    address.set(pick(req.body, EDITABLE));
+    await address.validate();
 
-    const address = await Address.findOne({
-      _id: addressId,
-      user: userId,
-    });
-
-    if (!address) {
-      return res.status(404).json({
-        success: false,
-        message: "Address not found",
-      });
-    }
-
-    const allowedFields = [
-      "recipientName",
-      "contactNumber",
-      "label",
-      "addressLine1",
-      "addressLine2",
-      "city",
-      "district",
-      "province",
-      "postalCode",
-      "country",
-    ];
-
-    // Update only allowed fields
-    allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
-        address[field] = req.body[field];
-      }
-    });
-
-    // Handle default address selection
-    if (req.body.isDefault === true) {
-      await Address.updateMany(
-        { user: userId, _id: { $ne: addressId } },
-        { $set: { isDefault: false } }
-      );
-
+    if (req.body?.isDefault === true && !address.isDefault) {
+      await clearDefault(req.user._id);
       address.isDefault = true;
     }
 
     await address.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Address updated successfully",
-      address,
-    });
+    res.json(address);
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update address",
-      error: error.message,
-    });
+    handleError(res, error);
   }
 };
 
-// Set an address as the default address
+// PATCH /addresses/:id/default
 export const setDefaultAddress = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    const { addressId } = req.params;
+    const address = await findOwn(req);
+    if (!address) return notFound(res);
 
-    if (!mongoose.Types.ObjectId.isValid(addressId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid address ID",
-      });
+    if (!address.isDefault) {
+      await clearDefault(req.user._id);
+      address.isDefault = true;
+      await address.save();
     }
 
-    const address = await Address.findOne({
-      _id: addressId,
-      user: userId,
-    });
-
-    if (!address) {
-      return res.status(404).json({
-        success: false,
-        message: "Address not found",
-      });
-    }
-
-    await Address.updateMany(
-      { user: userId },
-      { $set: { isDefault: false } }
-    );
-
-    address.isDefault = true;
-    await address.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Default address updated successfully",
-      address,
-    });
+    res.json(address);
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to set default address",
-      error: error.message,
-    });
+    handleError(res, error);
   }
 };
 
-// Delete an address
+// DELETE /addresses/:id
 export const deleteAddress = async (req, res) => {
   try {
-    const userId = getUserId(req);
-    const { addressId } = req.params;
+    const address = await findOwn(req);
+    if (!address) return notFound(res);
 
-    if (!mongoose.Types.ObjectId.isValid(addressId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid address ID",
+    const wasDefault = address.isDefault;
+    await address.deleteOne();
+
+    if (wasDefault) {
+      const next = await Address.findOne({ user: req.user._id }).sort({
+        updatedAt: -1,
       });
-    }
-
-    const address = await Address.findOneAndDelete({
-      _id: addressId,
-      user: userId,
-    });
-
-    if (!address) {
-      return res.status(404).json({
-        success: false,
-        message: "Address not found",
-      });
-    }
-
-    // If the deleted address was the default, select another address
-    if (address.isDefault) {
-      const nextAddress = await Address.findOne({ user: userId })
-        .sort({ createdAt: -1 });
-
-      if (nextAddress) {
-        nextAddress.isDefault = true;
-        await nextAddress.save();
+      if (next) {
+        next.isDefault = true;
+        await next.save();
       }
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Address deleted successfully",
-    });
+    res.json({ message: "Address deleted.", _id: address._id });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete address",
-      error: error.message,
-    });
+    handleError(res, error);
   }
 };
