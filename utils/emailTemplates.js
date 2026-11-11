@@ -14,3 +14,32 @@ export const welcomeEmail = (firstName) => `
     </p>
   </div>
 `;
+
+export const passwordResetEmail = (firstName, link, expiresMinutes) => `
+  <div style="font-family: Arial, sans-serif; max-width: 520px; margin: auto; color: #3b2a20;">
+    <h2 style="color: #713e26;">Reset Your Password</h2>
+    <p>Hello ${firstName || "there"},</p>
+    <p>We received a request to reset your Furniva account password.</p>
+    <p>Click the button below to create a new password:</p>
+    <a href="${link}"
+       style="display:inline-block; padding:10px 22px; background:#713e26;
+              color:#fff; text-decoration:none; border-radius:999px;">
+      Reset Password
+    </a>
+    <p>This link expires in ${expiresMinutes} minutes.</p>
+    <p style="font-size:13px; color:#888;">
+      If you didn't request a password reset, you can safely ignore this email.
+    </p>
+    <p>The Furniva Team</p>
+  </div>
+`;
+
+export const passwordChangedEmail = (firstName) => `
+  <div style="font-family: Arial, sans-serif; max-width: 520px; margin: auto; color: #3b2a20;">
+    <h2 style="color: #713e26;">Password Changed Successfully</h2>
+    <p>Hello ${firstName || "there"},</p>
+    <p>Your Furniva account password has been successfully changed.</p>
+    <p>If you did not make this change, please contact our support team immediately.</p>
+    <p>The Furniva Team</p>
+  </div>
+`;
