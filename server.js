@@ -15,6 +15,7 @@ import wishlistRouter from "./routers/wishlistRouter.js";
 import paymentRouter from "./routers/paymentRouter.js";
 import passwordRouter from "./routers/passwordRouter.js";
 import customRequestRouter from "./routers/customRequestRouter.js";
+import consultationRouter from "./routers/consultationRouter.js";
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.use("/wishlist", wishlistRouter);
 app.use("/payments", paymentRouter);
 app.use("/password", passwordRouter);
 app.use("/custom-requests", customRequestRouter);
+app.use("/consultation", consultationRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Furniva API!");
