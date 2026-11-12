@@ -39,7 +39,7 @@ app.use("/wishlist", wishlistRouter);
 app.use("/payments", paymentRouter);
 app.use("/password", passwordRouter);
 app.use("/custom-requests", customRequestRouter);
-app.use("/consultation", consultationRouter);
+app.use("/consultations", consultationRouter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Furniva API!");

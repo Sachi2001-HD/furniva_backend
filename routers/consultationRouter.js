@@ -7,15 +7,18 @@ import {
   updateConsultation,
 } from "../controllers/consultationController.js";
 import { authenticate, adminOnly } from "../middlewares/authenticate.js";
+import { optionalAuthenticate } from "../middlewares/optionalAuth.js";
 
 const router = express.Router();
 
-router.use(authenticate);
+router.post("/", optionalAuthenticate, createConsultation);
 
-router.post("/", createConsultation);
-router.get("/my", getMyConsultations);
-router.get("/", adminOnly, getAllConsultations);
-router.patch("/:id/cancel", cancelMyConsultation);
-router.patch("/:id", adminOnly, updateConsultation);
+// Customers
+router.get("/my", authenticate, getMyConsultations);
+router.patch("/:id/cancel", authenticate, cancelMyConsultation);
+
+// Admin
+router.get("/", authenticate, adminOnly, getAllConsultations);
+router.patch("/:id", authenticate, adminOnly, updateConsultation);
 
 export default router;
