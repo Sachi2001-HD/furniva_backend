@@ -9,9 +9,11 @@ export const getWishlist = async (req, res) => {
   try {
     const userId = getUserId(req);
 
-    const wishlist = await Wishlist.findOne({ user: userId })
-      .populate("products");
-
+    const wishlist = await Wishlist.findOne({ user: userId }).populate({
+      path: "products",
+      match: { isActive: true },
+    });
+    
     return res.status(200).json({
       success: true,
       wishlist: wishlist || {
