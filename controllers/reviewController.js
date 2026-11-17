@@ -2,6 +2,15 @@ import mongoose from "mongoose";
 import Review from "../models/review.js";
 import Product from "../models/product.js";
 
+const displayName = (user) => {
+  const first = user.firstName?.trim() || "A customer";
+  const initial = user.lastName?.trim()?.[0];
+
+  return initial && /\p{L}/u.test(initial)
+    ? `${first} ${initial.toUpperCase()}.`
+    : first;
+};
+
 // Create a review
 export const createReview = async (req, res) => {
   try {
@@ -334,6 +343,57 @@ export const updateReviewStatus = async (req, res) => {
       success: false,
       message: "Failed to update review status",
       error: error.message,
+    });
+  }
+};
+
+// Public: best recent reviews
+export const getFeaturedReviews = async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 3, 1), 12);
+
+    const [reviews, stats] = await Promise.all([
+      Review.find({ isApproved: true, rating: { $gte: 4 } })
+        .sort({ createdAt: -1 })
+        .limit(limit * 3)
+        .populate("user", "firstName lastName")
+        .populate({ path: "product", select: "name", match: { isActive: true } })
+        .lean(),
+      Review.aggregate([
+        { $match: { isApproved: true } },
+        {
+          $group: {
+            _id: null,
+            average: { $avg: "$rating" },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const items = reviews
+      .filter((review) => review.user && review.product)
+      .slice(0, limit)
+      .map((review) => ({
+        _id: review._id,
+        rating: review.rating,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        author: displayName(review.user),
+        product: { _id: review.product._id, name: review.product.name },
+      }));
+
+    const summary = stats[0]
+      ? { average: Number(stats[0].average.toFixed(1)), count: stats[0].count }
+      : { average: 0, count: 0 };
+
+    return res.status(200).json({ success: true, reviews: items, summary });
+  } catch (error) {
+    console.error("Get featured reviews error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve reviews",
     });
   }
 };

@@ -38,7 +38,7 @@ export const markAsRead = async (req, res) => {
         recipient: userId,
       },
       { isRead: true },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!notification) {
@@ -62,7 +62,10 @@ export const markAllAsRead = async (req, res) => {
     const userId = req.user.id || req.user._id;
 
     await Notification.updateMany(
-      { recipient: userId, isRead: false },
+      {
+        recipient: userId,
+        isRead: false,
+      },
       { isRead: true }
     );
 
@@ -103,7 +106,9 @@ export const clearNotifications = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
 
-    await Notification.deleteMany({ recipient: userId });
+    await Notification.deleteMany({
+      recipient: userId,
+    });
 
     res.json({
       message: "All notifications cleared.",

@@ -3,6 +3,7 @@ import express from "express";
 import {
   createReview,
   getProductReviews,
+  getFeaturedReviews,
   updateReview,
   deleteReview,
   getAllReviews,
@@ -10,12 +11,12 @@ import {
   adminDeleteReview,
 } from "../controllers/reviewController.js";
 
-import {
-  authenticate,
-  adminOnly,
-} from "../middlewares/authenticate.js";
+import { authenticate, adminOnly } from "../middlewares/authenticate.js";
 
 const router = express.Router();
+
+// Public
+router.get("/featured", getFeaturedReviews);
 
 // Customer routes
 router.post("/:productId", authenticate, createReview);
