@@ -3,6 +3,7 @@ import express from "express";
 import {
   createReview,
   getProductReviews,
+  getMyProductReview,
   getFeaturedReviews,
   updateReview,
   deleteReview,
@@ -21,6 +22,7 @@ router.get("/featured", getFeaturedReviews);
 // Customer routes
 router.post("/:productId", authenticate, createReview);
 router.get("/:productId", getProductReviews);
+router.get("/my/:productId", authenticate, getMyProductReview);
 router.put("/my-review/:reviewId", authenticate, updateReview);
 router.delete("/my-review/:reviewId", authenticate, deleteReview);
 

@@ -23,9 +23,14 @@ const reviewSchema = new mongoose.Schema(
 
     comment: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
       maxlength: 1000,
+    },
+
+    isVerifiedPurchase: {
+      type: Boolean,
+      default: false,
     },
 
     isApproved: {
@@ -38,7 +43,6 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
-// One review per customer per product
 reviewSchema.index(
   { product: 1, user: 1 },
   { unique: true }

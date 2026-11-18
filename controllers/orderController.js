@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import Order, { ORDER_STATUSES } from "../models/order.js";
 import Product from "../models/product.js";
 import { calculateDeliveryFee } from "../utils/deliveryFee.js";
+import User from "../models/user.js";
+import { createNotification } from "../utils/createNotification.js";
 
 import {
   cancelPaymentForOrder,
@@ -170,6 +172,7 @@ const moveOrder = async (order, nextStatus, actorId = null) => {
   return updated;
 };
 
+// POST /orders/quote
 export const quoteOrder = async (req, res) => {
   try {
     const body = req.body ?? {};
@@ -258,7 +261,7 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // Prepare order items using current product prices
+    // Prepare order items
     const items = products.map((product) => ({
       product: product._id,
       name: product.name,
@@ -329,6 +332,34 @@ export const createOrder = async (req, res) => {
 
     // Create the payment record for the new order.
     await logFailure(ensurePayment(order));
+
+    try {
+      await createNotification({
+        recipient: req.user._id,
+        title: "Order placed",
+        message: `Your order ${order.orderNumber} has been received.`,
+        type: "order",
+        link: "/orders",
+      });
+
+      const admins = await User.find({ role: "admin" })
+        .select("_id")
+        .lean();
+
+      await Promise.all(
+        admins.map((admin) =>
+          createNotification({
+            recipient: admin._id,
+            title: "New order",
+            message: `${order.orderNumber} was placed for Rs. ${order.total.toLocaleString("en-US")}.`,
+            type: "order",
+            link: "/admin/orders",
+          })
+        )
+      );
+    } catch (error) {
+      console.error("Notification failed:", error.message);
+    }
 
     res.status(201).json(order);
   } catch (error) {
@@ -510,6 +541,18 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(409).json({
         message: "This order was just updated. Please refresh.",
       });
+    }
+
+    try {
+      await createNotification({
+        recipient: updated.user,
+        title: `Order ${status.toLowerCase()}`,
+        message: `Your order ${updated.orderNumber} is now ${status.toLowerCase()}.`,
+        type: "order",
+        link: "/orders",
+      });
+    } catch (error) {
+      console.error("Notification failed:", error.message);
     }
 
     res.json(updated);

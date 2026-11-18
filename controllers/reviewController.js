@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Review from "../models/review.js";
 import Product from "../models/product.js";
+import Order from "../models/order.js";
 
 const displayName = (user) => {
   const first = user.firstName?.trim() || "A customer";
@@ -14,10 +15,11 @@ const displayName = (user) => {
 // Create a review
 export const createReview = async (req, res) => {
   try {
-    const { rating, comment } = req.body;
+    const { rating, comment = "" } = req.body;
     const { productId } = req.params;
     const userId = req.user.id || req.user._id;
 
+    // Validate product ID
     if (!mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({
         success: false,
@@ -25,18 +27,24 @@ export const createReview = async (req, res) => {
       });
     }
 
-    if (!rating || !Number.isInteger(Number(rating)) ||
-        Number(rating) < 1 || Number(rating) > 5) {
+    // Validate rating
+    if (
+      rating === undefined ||
+      !Number.isInteger(Number(rating)) ||
+      Number(rating) < 1 ||
+      Number(rating) > 5
+    ) {
       return res.status(400).json({
         success: false,
         message: "Rating must be an integer between 1 and 5",
       });
     }
 
-    if (!comment || !comment.trim()) {
+    // Validate optional comment
+    if (typeof comment !== "string" || comment.length > 1000) {
       return res.status(400).json({
         success: false,
-        message: "Review comment is required",
+        message: "Review comment must be 1000 characters or fewer",
       });
     }
 
@@ -49,6 +57,20 @@ export const createReview = async (req, res) => {
       });
     }
 
+    const deliveredOrder = await Order.findOne({
+      user: userId,
+      status: "Delivered",
+      "items.product": productId,
+    });
+
+    if (!deliveredOrder) {
+      return res.status(403).json({
+        success: false,
+        message: "You can review this product after it has been delivered.",
+      });
+    }
+
+    // Prevent duplicate reviews
     const existingReview = await Review.findOne({
       product: productId,
       user: userId,
@@ -88,7 +110,6 @@ export const createReview = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to submit review",
-      error: error.message,
     });
   }
 };
@@ -125,8 +146,7 @@ export const getProductReviews = async (req, res) => {
 
     const averageRating =
       totalReviews > 0
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) /
-          totalReviews
+        ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews
         : 0;
 
     return res.status(200).json({
@@ -142,6 +162,38 @@ export const getProductReviews = async (req, res) => {
       success: false,
       message: "Failed to retrieve reviews",
       error: error.message,
+    });
+  }
+};
+
+export const getMyProductReview = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const userId = req.user.id || req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID",
+      });
+    }
+
+    const review = await Review.findOne({
+      product: productId,
+      user: userId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      review,
+      hasReviewed: !!review,
+    });
+  } catch (error) {
+    console.error("Get customer review error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve your review",
     });
   }
 };
@@ -192,17 +244,16 @@ export const updateReview = async (req, res) => {
     }
 
     if (comment !== undefined) {
-      if (!comment.trim()) {
+      if (typeof comment !== "string" || comment.trim().length > 1000) {
         return res.status(400).json({
           success: false,
-          message: "Review comment cannot be empty",
+          message: "Comment must be a string with a maximum of 1000 characters",
         });
       }
 
       review.comment = comment.trim();
     }
 
-    // Require moderation again after an edit.
     review.isApproved = false;
 
     await review.save();
@@ -317,7 +368,7 @@ export const updateReviewStatus = async (req, res) => {
     const review = await Review.findByIdAndUpdate(
       reviewId,
       { isApproved },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     )
       .populate("user", "firstName lastName email image")
       .populate("product", "name images price");
@@ -357,7 +408,11 @@ export const getFeaturedReviews = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(limit * 3)
         .populate("user", "firstName lastName")
-        .populate({ path: "product", select: "name", match: { isActive: true } })
+        .populate({
+          path: "product",
+          select: "name",
+          match: { isActive: true },
+        })
         .lean(),
       Review.aggregate([
         { $match: { isApproved: true } },
